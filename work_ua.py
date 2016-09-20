@@ -109,6 +109,7 @@ class WorkUaWorker(WorkUaLogin):
             raw=self._get_text('.card.card-indent.wordwrap', delay=1),
             fullname=self._get_text('.card.card-indent.wordwrap H1.cut-top'),
             position=self._get_text('.card.card-indent.wordwrap H2'),
+            cv_date=self._get_text('.card.card-indent.wordwrap .add-top span.text-muted'),
         )
         if self.read_contacts:
             self.do_click('#showContacts')

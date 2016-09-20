@@ -98,6 +98,7 @@ class RabotauaWorker(RabotaUaLogin):
         info['name'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblName')
         info['position'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_txtJobName')
         info['coreinfo'] = self._get_text('.rua-g-clearfix .rua-p-t_12')
+        info['cv_date'] = self._get_text('.cvheadnav .muted')
 
         fields = self._get_list('.cvtexts > div')
 
