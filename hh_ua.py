@@ -16,10 +16,11 @@ class HHLogin(Base):
     PASSWORD_FIELD = 'H20R16'
 
     def login(self):
-        self.driver.get('https://hh.ua/')
-        self.do_input('.login-input__input-wrapper [data-qa="login-input-username"]', self.LOGIN_FIELD)
-        self.do_input('.login-input__input-wrapper [data-qa="login-input-password"]', self.PASSWORD_FIELD)
-        self.do_click('.login-submit-form [data-qa="login-submit"]')
+        self.driver.get('https://hh.ua/account/login')
+        self.do_input('[data-qa="login-input-username"]', self.LOGIN_FIELD, delay=1)
+        self.do_input('[data-qa="login-input-password"]', self.PASSWORD_FIELD)
+        self.do_click('[data-qa="account-login-submit"]')
+
 
 
 class HHManager(HHLogin):
@@ -33,9 +34,12 @@ class HHManager(HHLogin):
     def start_search(self):
         self.do_input('[data-qa="resume-serp__query"]', self.keyword, delay=1)
         self.do_click('[data-hh-tab-id="resumeSearch"] button[data-qa="navi-search__button"]')
+        self.do_click('[data-qa="serp-settings__search-period"]', delay=1)
+        self.do_click('[data-qa="select-period-365"]', delay=1)
+
 
     def go_to_next_page(self):
-        self.do_click('.b-pager__next-text.m-active-arrow [data-qa="pager-next"]', delay=1)
+        self.do_click('[data-qa="pager-next"]', delay=1)
 
     def get_resume_urls_from_page(self):
         time.sleep(1)
@@ -47,18 +51,21 @@ class HHManager(HHLogin):
         while True:
             for resume_url in self.get_resume_urls_from_page():
                 yield resume_url
-            self.go_to_next_page()
+            try:
+                self.go_to_next_page()
+            except:
+                break
 
     def process(self):
         self.login()
-        pool = multiprocessing.Pool(processes=2)
+        pool = multiprocessing.Pool(processes=1)
         urls_list = self.generate_urls()
         count = 0
         for resume, url in pool.imap(worker_runner, urls_list):
             self.data[url] = resume
-            count += 1
-            if count == 20:
-                break
+            # count += 1
+            # if count == 20:
+            #     break
         data = list(self.data.values())
         cols_set = set([k for d in data for k in d.keys()])
         print(cols_set)
