@@ -16,7 +16,7 @@ class RabotaUaLogin(Base):
 
     def login(self):
         self.driver.get('http://rabota.ua/employer/login')
-        self.do_input('#centerZone_ZoneLogin_txLogin', self.LOGIN_FIELD)
+        self.do_input('#centerZone_ZoneLogin_txLogin', self.LOGIN_FIELD, delay=1)
         self.do_input('#centerZone_ZoneLogin_txPassword', self.PASSWORD_FIELD)
         self.do_click("#centerZone_ZoneLogin_btnLogin")
 
@@ -33,6 +33,8 @@ class RabotaUAManager(RabotaUaLogin):
         self.do_click("//a[contains(text(), 'Найти резюме')]", type='xpath')
         self.do_input('#beforeContentZone_Main2_txtKeywords', self.keyword, delay=1)
         self.do_click('a#search')
+        self.do_click('''select[data-bind="options: PeriodOptions, optionsText: 'Name', optionsValue: 'Key', value: SelectedPeriod"]''', delay=1)
+        self.do_click('''select[data-bind="options: PeriodOptions, optionsText: 'Name', optionsValue: 'Key', value: SelectedPeriod"] option[value = '5']''', delay=1)
 
     def get_resume_urls_from_page(self):
         time.sleep(1)
@@ -47,7 +49,12 @@ class RabotaUAManager(RabotaUaLogin):
         while True:
             for resume_url in self.get_resume_urls_from_page():
                 yield resume_url
-            self.go_to_next_page()
+            try:
+                self.go_to_next_page()
+            except Exception as e:
+                print(e)
+                break
+
 
     def process(self):
         self.login()
@@ -56,9 +63,9 @@ class RabotaUAManager(RabotaUaLogin):
         count = 0
         for resume, url in pool.imap(worker_runner, urls_list):
             self.data[url] = resume
-            count +=1
-            if count ==20:
-                break
+            # count +=1
+            # if count ==20:
+            #     break
         data = list(self.data.values())
         cols_set = set([k for d in data for k in d.keys()])
         print(cols_set)
@@ -87,8 +94,8 @@ class RabotauaWorker(RabotaUaLogin):
     def init(self, read_contacts):
         self.driver = webdriver.Firefox()
         self.read_contacts = read_contacts
-        time.sleep(1)
         self.login()
+        time.sleep(1)
         print('worker loginned')
 
     def read_resume(self, url):

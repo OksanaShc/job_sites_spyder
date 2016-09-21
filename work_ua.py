@@ -18,9 +18,10 @@ class WorkUaLogin(Base):
     def login(self):
         self.driver.get('https://www.work.ua/employer/')
         self.do_click("a[href='/employer/login/'][type='button']")
-        self.do_input('#email', self.LOGIN_FIELD)
+        self.do_input('#email', self.LOGIN_FIELD, delay=1)
         self.do_input('#password', self.PASSWORD_FIELD)
         self.do_click("button[type='submit']")
+        time.sleep(1)
 
 
 class WorkUaManager(WorkUaLogin):
@@ -38,6 +39,8 @@ class WorkUaManager(WorkUaLogin):
         self.do_click("#f2", delay=1)
         self.do_click("#f3", delay=1)
         self.do_input('#search', self.keyword, delay=1)
+        self.do_click('.input-search-city')
+        self.do_click('.js-region-reset', delay=1)
         self.do_click('button[type=submit]')
 
     def go_to_next_page(self):
@@ -53,18 +56,19 @@ class WorkUaManager(WorkUaLogin):
         while True:
             for resume_url in self.get_resume_urls_from_page():
                 yield resume_url
-            self.go_to_next_page()
+            try:
+                self.go_to_next_page()
+            except Exception as e:
+                print(e)
+                break
 
     def process(self):
         self.login()
-        pool = multiprocessing.Pool(processes=2)
+        pool = multiprocessing.Pool(processes=5)
         urls_list = self.generate_urls()
         count = 0
         for resume, url in pool.imap(worker_runner, urls_list):
             self.data[url] = resume
-            count += 1
-            if count == 20:
-                break
         data = list(self.data.values())
         cols_set = set([k for d in data for k in d.keys()])
         print(cols_set)
@@ -100,6 +104,7 @@ class WorkUaWorker(WorkUaLogin):
         self.read_contacts = read_contacts
         time.sleep(1)
         self.login()
+        time.sleep(1)
         print('worker loginned')
 
     def read_resume(self, url):
