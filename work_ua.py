@@ -39,12 +39,12 @@ class WorkUaManager(WorkUaLogin):
         self.do_click("#f2", delay=1)
         self.do_click("#f3", delay=1)
         self.do_input('#search', self.keyword, delay=1)
-        self.do_click('.input-search-city')
-        self.do_click('.js-region-reset', delay=1)
+        # self.do_click('.input-search-city')
+        # self.do_click('.js-region-reset', delay=1)
         self.do_click('button[type=submit]')
 
     def go_to_next_page(self):
-        self.do_click('.pagination.hidden-xs li:last-child', delay=1)
+        self.do_click('.pagination.hidden-xs li:last-child:not(.disabled)', delay=1)
 
     def get_resume_urls_from_page(self):
         time.sleep(1)
@@ -64,7 +64,7 @@ class WorkUaManager(WorkUaLogin):
 
     def process(self):
         self.login()
-        pool = multiprocessing.Pool(processes=5)
+        pool = multiprocessing.Pool(processes=4)
         urls_list = self.generate_urls()
         count = 0
         for resume, url in pool.imap(worker_runner, urls_list):
@@ -77,6 +77,7 @@ class WorkUaManager(WorkUaLogin):
 
 
 class WorkUaWorker(WorkUaLogin):
+    counter = 0
     _instance = None
     vocabulary = {
         'Контактная информация': 'contacts',
@@ -96,11 +97,21 @@ class WorkUaWorker(WorkUaLogin):
     def __new__(cls, read_contacts=False, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(WorkUaWorker, cls).__new__(cls)
+            cls.driver = webdriver.Firefox()
             cls._instance.init(read_contacts)
-        return cls._instance
+            cls.counter = 1
+        if cls.counter < 11:
+            cls.counter += 1
+            return cls._instance
+        else:
+            cls.driver.quit()
+            cls.driver = webdriver.Firefox()
+            cls._instance.init(read_contacts)
+            cls.counter = 1
+            return cls._instance
 
     def init(self, read_contacts):
-        self.driver = webdriver.Firefox()
+        # self.driver = webdriver.Firefox()
         self.read_contacts = read_contacts
         time.sleep(1)
         self.login()
@@ -145,6 +156,6 @@ if __name__ == "__main__":
     start = datetime.datetime.now()
     c = WorkUaManager(keyword='python', worker=worker_runner, read_contacts=False)
     data, columns = c.process()
-    write_to_file('rabota.xlsx', data, columns)
+    write_to_file('work.xlsx', data, columns)
     end = datetime.datetime.now()
     print('start: %s, end: %s. total: %s' % (start, end, end - start))
