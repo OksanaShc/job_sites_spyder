@@ -1,8 +1,11 @@
+import re
+import redis
+import json
 import multiprocessing
 import time
 import datetime
 from selenium import webdriver
-from base import Crawler, Base
+from base import Base
 from xlsx import write_to_file
 
 
@@ -20,14 +23,19 @@ class RabotaUaLogin(Base):
         self.do_input('#centerZone_ZoneLogin_txPassword', self.PASSWORD_FIELD)
         self.do_click("#centerZone_ZoneLogin_btnLogin")
 
+    def __del__(self):
+        self.driver.quit()
+
 
 class RabotaUAManager(RabotaUaLogin):
+
     def __init__(self, keyword, worker, read_contacts):
         self.data = {}
         self.keyword = keyword
         self.worker = worker
         self.driver = webdriver.Firefox()
         self.read_contacts = read_contacts
+        self.redis = redis.Redis(db='10')
 
     def start_search(self):
         self.do_click("//a[contains(text(), 'Найти резюме')]", type='xpath')
@@ -48,6 +56,8 @@ class RabotaUAManager(RabotaUaLogin):
         self.start_search()
         while True:
             for resume_url in self.get_resume_urls_from_page():
+                if self.redis.hget('rabota', resume_url):
+                    continue
                 yield resume_url
             try:
                 self.go_to_next_page()
@@ -55,18 +65,19 @@ class RabotaUAManager(RabotaUaLogin):
                 print(e)
                 break
 
-
     def process(self):
         self.login()
         pool = multiprocessing.Pool(processes=5)
         urls_list = self.generate_urls()
         count = 0
         for resume, url in pool.imap(worker_runner, urls_list):
-            self.data[url] = resume
-            # count +=1
-            # if count ==20:
-            #     break
-        data = list(self.data.values())
+            self.redis.hset('rabota', url, json.dumps(resume))
+        #     # count +=1
+        #     # if count == 5:
+        #     #     break
+
+        redis_data = self.redis.hgetall('rabota')
+        data = [json.loads(v.decode(encoding='utf-8')) for v in list(redis_data.values())]
         cols_set = set([k for d in data for k in d.keys()])
         print(cols_set)
         columns = list(cols_set)
@@ -75,6 +86,7 @@ class RabotaUAManager(RabotaUaLogin):
 
 class RabotauaWorker(RabotaUaLogin):
     _instance = None
+    data_reg = re.compile('\s*<span.*?>•</span>\s*', re.I + re.S)
     vocabulary = {
         'AimHolder': 'Aim',
         'SkillsHolder': 'Skills',
@@ -98,14 +110,33 @@ class RabotauaWorker(RabotaUaLogin):
         time.sleep(1)
         print('worker loginned')
 
+    def get_core_info(self):
+        info = {}
+        coreinfo = self._get_list('.rua-g-clearfix .rua-p-t_12')
+        if not coreinfo:
+            return info
+        html = coreinfo[0].get_attribute('innerHTML')
+
+        parts = self.data_reg.split(html.replace('&nbsp', '').replace(';', '').strip())
+        for p in parts:
+            p = ''.join(filter(lambda l: l.isalnum() or l == '$', p))
+            if p.isalpha():
+                info['city'] = p
+            elif 'years' in p or 'лет' in p or 'год'in p or 'рок' in p or 'рiк':
+                info['age'] = p
+            else:
+                info['payment'] = p
+        return info
+
     def read_resume(self, url):
         print(url)
         info = {}
         self.driver.get(url)
         info['name'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblName')
         info['position'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_txtJobName')
-        info['coreinfo'] = self._get_text('.rua-g-clearfix .rua-p-t_12')
-        info['cv_date'] = self._get_text('.cvheadnav .muted')
+
+        info['cv_date'] = self._get_text('.cvheadnav .muted').replace('резюме обновлено ', '')
+        info.update(self.get_core_info())
 
         fields = self._get_list('.cvtexts > div')
 
@@ -131,94 +162,3 @@ if __name__ == "__main__":
     write_to_file('rabota.xlsx', data, columns)
     end = datetime.datetime.now()
     print('start: %s, end: %s. total: %s' % (start, end, end - start))
-
-
-
-
-# class Rabotaua(Crawler):
-#     url = 'http://rabota.ua/employer'
-#     LOGIN_FIELD = 'hr.rinasystems@gmail.com'
-#     PASSWORD_FIELD = '2016HR'
-#     vocabulary = {
-#         'AimHolder': 'Aim',
-#         'SkillsHolder': 'Skills',
-#         'ExperienceHolder': 'Experience',
-#         'EducationHolder': 'Education',
-#         'LanguagesHolder': 'Languages',
-#         'TrainingsHolder': 'Trainings',
-#         'AdditionalInfoHolder': 'Additional Info'
-#     }
-#
-#     def __init__(self, keyword, read_contacts=False):
-#         super().__init__(keyword)
-#         self.read_contacts = read_contacts
-#
-#
-#
-#
-#
-#     def get_resume(self):
-#         info = {}
-#         info['name'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblName')
-#         info['position'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_txtJobName')
-#         info['coreinfo'] = self._get_text('.rua-g-clearfix .rua-p-t_12')
-#
-#         fields = self._get_list('.cvtexts > div')
-#
-#         for field in fields:
-#             if field.text and field.get_attribute('id'):
-#                 info[field.get_attribute('id')] = field.text.split('\n')
-#
-#         if self.read_contacts:
-#             self.do_click('#centerZone_BriefResume1_CvView1_cvHeader_lnkBuyCv')
-#             info['birthday'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblBirthDateValue')
-#             info['email'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblEmailValue')
-#             info['region'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblRegionValue')
-#             info['phone'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblPhoneValue')
-#
-#         return {self.vocabulary.get(k, k): v for k, v in info.items()}
-#
-#     def read_page(self):
-#         time.sleep(1)
-#         resumes = self._get_list(selector='h3 a[href^="/cv/"]')
-#         start_url = self.driver.current_url
-#         count = 0
-#         resume_links = [resume.get_attribute("href") for resume in resumes]
-#         for url in resume_links:
-#             if url in self.data:
-#                 continue
-#             time.sleep(1)
-#             count += 1
-#             self.driver.get(url)
-#             resume = self.get_resume()
-#             self.data[url] = resume
-#         self.driver.get(start_url)
-#         return count
-#
-#     def goto_next_page(self):
-#         self.do_click('a.pager-next.pager-next-enabled', delay=1)
-#
-#     def process(self):
-#         self.login()
-#         self.find_resumes()
-#         while True:
-#             count = self.read_page()
-#             if count == 0:
-#                 break
-#             self.goto_next_page()
-#             break
-#         data = list(self.data.values())
-#         cols_set = set([k for d in data for k in d.keys()])
-#         print(cols_set)
-#         columns = list(cols_set)
-#         return data, columns
-#
-#
-# if __name__ == "__main__":
-#     import datetime
-#     start = datetime.datetime.now()
-#     c = Rabotaua(keyword='python', read_contacts=False)
-#     data, columns = c.process()
-#     write_to_file('rabota.xlsx', data, columns)
-#     end = datetime.datetime.now()
-#     print('start: %s, end: %s. total: %s' % (start, end, end - start))

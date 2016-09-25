@@ -1,4 +1,6 @@
 import datetime
+import redis
+import json
 import multiprocessing
 import time
 from selenium import webdriver
@@ -31,6 +33,7 @@ class WorkUaManager(WorkUaLogin):
         self.worker = worker
         self.driver = webdriver.Firefox()
         self.read_contacts = read_contacts
+        self.redis = redis.Redis(host='192.168.0.109', db='10')
 
     def start_search(self):
         self.do_click("a[href='/resumes/']")
@@ -68,6 +71,9 @@ class WorkUaManager(WorkUaLogin):
         urls_list = self.generate_urls()
         count = 0
         for resume, url in pool.imap(worker_runner, urls_list):
+            if self.redis.hget('work', url):
+                continue
+            self.redis.hset('work', url, json.dumps(resume))
             self.data[url] = resume
         data = list(self.data.values())
         cols_set = set([k for d in data for k in d.keys()])
@@ -77,7 +83,6 @@ class WorkUaManager(WorkUaLogin):
 
 
 class WorkUaWorker(WorkUaLogin):
-    counter = 0
     _instance = None
     vocabulary = {
         'Контактная информация': 'contacts',
@@ -100,6 +105,7 @@ class WorkUaWorker(WorkUaLogin):
             cls.driver = webdriver.Firefox()
             cls._instance.init(read_contacts)
             cls.counter = 1
+
         if cls.counter < 11:
             cls.counter += 1
             return cls._instance

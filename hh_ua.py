@@ -22,7 +22,6 @@ class HHLogin(Base):
         self.do_click('[data-qa="account-login-submit"]')
 
 
-
 class HHManager(HHLogin):
     def __init__(self, keyword, worker, read_contacts):
         self.data = {}
@@ -36,7 +35,6 @@ class HHManager(HHLogin):
         self.do_click('[data-hh-tab-id="resumeSearch"] button[data-qa="navi-search__button"]')
         self.do_click('[data-qa="serp-settings__search-period"]', delay=1)
         self.do_click('[data-qa="select-period-365"]', delay=1)
-
 
     def go_to_next_page(self):
         self.do_click('[data-qa="pager-next"]', delay=1)
@@ -53,7 +51,8 @@ class HHManager(HHLogin):
                 yield resume_url
             try:
                 self.go_to_next_page()
-            except:
+            except Exception as e:
+                print(e)
                 break
 
     def process(self):
@@ -79,11 +78,20 @@ class HHWorker(HHLogin):
     def __new__(cls, read_contacts=False, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(HHWorker, cls).__new__(cls)
+            cls.driver = webdriver.Firefox()
             cls._instance.init(read_contacts)
-        return cls._instance
+            cls.counter = 0
+        if cls.counter < 11:
+            cls.counter += 1
+            return cls._instance
+        else:
+            cls.driver.quit()
+            cls.driver = webdriver.Firefox()
+            cls._instance.init(read_contacts)
+            cls.counter = 1
+            return cls._instance
 
     def init(self, read_contacts):
-        self.driver = webdriver.Firefox()
         self.read_contacts = read_contacts
         time.sleep(1)
         self.login()
