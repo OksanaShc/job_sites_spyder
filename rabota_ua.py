@@ -10,7 +10,7 @@ from xlsx import write_to_file
 
 
 def worker_runner(url):
-    return RabotauaWorker(read_contacts=False).read_resume(url)
+    return RabotauaWorker(read_contacts=True).read_resume(url)
 
 
 class RabotaUaLogin(Base):
@@ -36,6 +36,7 @@ class RabotaUAManager(RabotaUaLogin):
         self.driver = webdriver.Firefox()
         self.read_contacts = read_contacts
         self.redis = redis.Redis(db='10')
+        self.redis_hashname = 'rabota'
 
     def start_search(self):
         self.do_click("//a[contains(text(), 'Найти резюме')]", type='xpath')
@@ -56,7 +57,7 @@ class RabotaUAManager(RabotaUaLogin):
         self.start_search()
         while True:
             for resume_url in self.get_resume_urls_from_page():
-                if self.redis.hget('rabota', resume_url):
+                if self.redis.hget(self.redis_hashname, resume_url):
                     continue
                 yield resume_url
             try:
@@ -71,12 +72,12 @@ class RabotaUAManager(RabotaUaLogin):
         urls_list = self.generate_urls()
         count = 0
         for resume, url in pool.imap(worker_runner, urls_list):
-            self.redis.hset('rabota', url, json.dumps(resume))
-        #     # count +=1
-        #     # if count == 5:
-        #     #     break
+            self.redis.hset(self.redis_hashname, url, json.dumps(resume))
+            # count +=1
+            # if count == 5:
+            #     break
 
-        redis_data = self.redis.hgetall('rabota')
+        redis_data = self.redis.hgetall(self.redis_hashname)
         data = [json.loads(v.decode(encoding='utf-8')) for v in list(redis_data.values())]
         cols_set = set([k for d in data for k in d.keys()])
         print(cols_set)
@@ -132,6 +133,7 @@ class RabotauaWorker(RabotaUaLogin):
         print(url)
         info = {}
         self.driver.get(url)
+        info['url'] = url
         info['name'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblName')
         info['position'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_txtJobName')
 
@@ -145,7 +147,10 @@ class RabotauaWorker(RabotaUaLogin):
                 info[field.get_attribute('id')] = field.text
 
         if self.read_contacts:
-            self.do_click('#centerZone_BriefResume1_CvView1_cvHeader_lnkBuyCv')
+            try:
+                self.do_click('#centerZone_BriefResume1_CvView1_cvHeader_lnkOpenContact')
+            except:
+                print('No id centerZone_BriefResume1_CvView1_cvHeader_lnkOpenContact in page')
             info['birthday'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblBirthDateValue')
             info['email'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblEmailValue')
             info['region'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblRegionValue')
@@ -157,8 +162,8 @@ class RabotauaWorker(RabotaUaLogin):
 
 if __name__ == "__main__":
     start = datetime.datetime.now()
-    c = RabotaUAManager(keyword='python', worker=worker_runner, read_contacts=False)
+    c = RabotaUAManager(keyword='python', worker=worker_runner, read_contacts=True)
     data, columns = c.process()
-    write_to_file('rabota.xlsx', data, columns)
+    write_to_file('rabota_%s.xlsx' % time.time(), data, columns)
     end = datetime.datetime.now()
     print('start: %s, end: %s. total: %s' % (start, end, end - start))
