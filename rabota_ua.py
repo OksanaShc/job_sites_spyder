@@ -88,6 +88,8 @@ class RabotaUAManager(RabotaUaLogin):
 class RabotauaWorker(RabotaUaLogin):
     _instance = None
     data_reg = re.compile('\s*<span.*?>•</span>\s*', re.I + re.S)
+    birthday_re = re.compile('\s*\(.*?\)')
+    years_identifiers = [b'\xd1\x80\xd1\x96\xd0\xba', b'\xd0\xbb\xd0\xb5\xd1\x82', b'\xd0\xb3\xd0\xbe\xd0\xb4', b'\xd1\x80\xd0\xbe\xd0\xba', b'years']
     vocabulary = {
         'AimHolder': 'Aim',
         'SkillsHolder': 'Skills',
@@ -111,6 +113,9 @@ class RabotauaWorker(RabotaUaLogin):
         time.sleep(1)
         print('worker loginned')
 
+    def is_date_string(self, string):
+            return [b for b in self.years_identifiers if b in bytes(string, encoding='utf-8')]
+
     def get_core_info(self):
         info = {}
         coreinfo = self._get_list('.rua-g-clearfix .rua-p-t_12')
@@ -123,7 +128,7 @@ class RabotauaWorker(RabotaUaLogin):
             p = ''.join(filter(lambda l: l.isalnum() or l == '$', p))
             if p.isalpha():
                 info['city'] = p
-            elif 'years' in p or 'лет' in p or 'год'in p or 'рок' in p or 'рiк':
+            elif self.is_date_string(p):
                 info['age'] = p
             else:
                 info['payment'] = p
@@ -151,7 +156,7 @@ class RabotauaWorker(RabotaUaLogin):
                 self.do_click('#centerZone_BriefResume1_CvView1_cvHeader_lnkOpenContact')
             except:
                 print('No id centerZone_BriefResume1_CvView1_cvHeader_lnkOpenContact in page')
-            info['birthday'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblBirthDateValue')
+            info['birthday'] = self.birthday_re.sub('', self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblBirthDateValue') or '')
             info['email'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblEmailValue')
             info['region'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblRegionValue')
             info['phone'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblPhoneValue')
