@@ -1,12 +1,8 @@
 import re
-import redis
-import json
-import multiprocessing
 import time
-import datetime
-from selenium import webdriver
+import multiprocessing
+
 from base import Base
-from xlsx import write_to_file
 
 
 def worker_runner(url):
@@ -14,6 +10,7 @@ def worker_runner(url):
 
 
 class RabotaUaLogin(Base):
+    table = 'rabota'
     LOGIN_FIELD = 'hr.rinasystems@gmail.com'
     PASSWORD_FIELD = '2016HR'
 
@@ -28,15 +25,15 @@ class RabotaUaLogin(Base):
 
 
 class RabotaUAManager(RabotaUaLogin):
-
     def __init__(self, keyword, worker, read_contacts):
+        super().__init__()
         self.data = {}
         self.keyword = keyword
         self.worker = worker
-        self.driver = webdriver.Firefox()
+
         self.read_contacts = read_contacts
-        self.redis = redis.Redis(db='10')
-        self.redis_hashname = 'rabota'
+
+        self.running = False
 
     def start_search(self):
         self.do_click("//a[contains(text(), 'Найти резюме')]", type='xpath')
@@ -48,16 +45,21 @@ class RabotaUAManager(RabotaUaLogin):
     def get_resume_urls_from_page(self):
         time.sleep(1)
         resumes = self._get_list(selector='h3 a[href^="/cv/"]')
-        return [resume.get_attribute("href") for resume in resumes]
+        try:
+            urls =  [resume.get_attribute("href") for resume in resumes]
+            return urls
+        except Exception as e:
+            print(e)
 
     def go_to_next_page(self):
         self.do_click('a.pager-next.pager-next-enabled', delay=1)
 
     def generate_urls(self):
         self.start_search()
-        while True:
+        existing_urls = [url['url'] for url in self.db.find({}, projection={'_id': 0, 'url': 1})]
+        while self.running:
             for resume_url in self.get_resume_urls_from_page():
-                if self.redis.hget(self.redis_hashname, resume_url):
+                if resume_url in existing_urls:
                     continue
                 yield resume_url
             try:
@@ -69,20 +71,15 @@ class RabotaUAManager(RabotaUaLogin):
     def process(self):
         self.login()
         pool = multiprocessing.Pool(processes=5)
+        self.running = True
         urls_list = self.generate_urls()
-        count = 0
-        for resume, url in pool.imap(worker_runner, urls_list):
-            self.redis.hset(self.redis_hashname, url, json.dumps(resume))
-            # count +=1
-            # if count == 5:
-            #     break
-
-        redis_data = self.redis.hgetall(self.redis_hashname)
-        data = [json.loads(v.decode(encoding='utf-8')) for v in list(redis_data.values())]
-        cols_set = set([k for d in data for k in d.keys()])
-        print(cols_set)
-        columns = list(cols_set)
-        return data, columns
+        for i, (resume, url) in enumerate(pool.imap(worker_runner, urls_list)):
+            if resume.get('error'):
+                self.running = False
+                pool.close()
+                pool.join()
+                break
+            self.save_item(resume)
 
 
 class RabotauaWorker(RabotaUaLogin):
@@ -106,9 +103,13 @@ class RabotauaWorker(RabotaUaLogin):
             cls._instance.init(read_contacts)
         return cls._instance
 
+    def __init__(self, read_contacts):
+        pass
+
     def init(self, read_contacts):
-        self.driver = webdriver.Firefox()
+        super().__init__()
         self.read_contacts = read_contacts
+        self.stopped = False
         self.login()
         time.sleep(1)
         print('worker loginned')
@@ -135,14 +136,29 @@ class RabotauaWorker(RabotaUaLogin):
         return info
 
     def read_resume(self, url):
+        if self.stopped:
+            return (None, url)
+
         print(url)
         info = {}
         self.driver.get(url)
+        if self.read_contacts:
+            if self.check_element('#centerZone_BriefResume1_CvView1_cvHeader_plhNoTemporalCredits'):
+                self.stopped = info['error'] = True
+            else:
+                try:
+                    self.do_click('#centerZone_BriefResume1_CvView1_cvHeader_lnkOpenContact')
+                except:
+                    print('No id centerZone_BriefResume1_CvView1_cvHeader_lnkOpenContact in page')
+                info['birthday'] = self.birthday_re.sub('', self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblBirthDateValue') or '')
+                info['email'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblEmailValue')
+                info['region'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblRegionValue')
+                info['phone'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblPhoneValue')
         info['url'] = url
         info['name'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblName')
         info['position'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_txtJobName')
 
-        info['cv_date'] = self._get_text('.cvheadnav .muted').replace('резюме обновлено ', '')
+        info['cv_date'] = (self._get_text('.cvheadnav .muted') or '').replace('резюме обновлено ', '')
         info.update(self.get_core_info())
 
         fields = self._get_list('.cvtexts > div')
@@ -151,24 +167,14 @@ class RabotauaWorker(RabotaUaLogin):
             if field.text and field.get_attribute('id'):
                 info[field.get_attribute('id')] = field.text
 
-        if self.read_contacts:
-            try:
-                self.do_click('#centerZone_BriefResume1_CvView1_cvHeader_lnkOpenContact')
-            except:
-                print('No id centerZone_BriefResume1_CvView1_cvHeader_lnkOpenContact in page')
-            info['birthday'] = self.birthday_re.sub('', self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblBirthDateValue') or '')
-            info['email'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblEmailValue')
-            info['region'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblRegionValue')
-            info['phone'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblPhoneValue')
-
         resume = {self.vocabulary.get(k, k): v for k, v in info.items()}
         return resume, url
 
 
 if __name__ == "__main__":
-    start = datetime.datetime.now()
-    c = RabotaUAManager(keyword='python', worker=worker_runner, read_contacts=True)
-    data, columns = c.process()
-    write_to_file('rabota_%s.xlsx' % time.time(), data, columns)
-    end = datetime.datetime.now()
-    print('start: %s, end: %s. total: %s' % (start, end, end - start))
+    start = time.time()
+    c = RabotaUAManager(keyword='php', worker=worker_runner, read_contacts=True)
+    c.process()
+    c.write_file()
+    end = time.time()
+    print('delay: %s' % round(end - start))

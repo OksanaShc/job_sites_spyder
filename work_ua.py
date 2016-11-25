@@ -1,6 +1,4 @@
 import datetime
-import redis
-import json
 import multiprocessing
 import time
 from selenium import webdriver
@@ -25,15 +23,21 @@ class WorkUaLogin(Base):
         self.do_click("button[type='submit']")
         time.sleep(1)
 
+    def __del__(self):
+        self.driver.quit()
+
 
 class WorkUaManager(WorkUaLogin):
+    table = 'work'
+
     def __init__(self, keyword, worker, read_contacts):
+        super().__init__()
         self.data = {}
         self.keyword = keyword
         self.worker = worker
         self.driver = webdriver.Firefox()
         self.read_contacts = read_contacts
-        self.redis = redis.Redis(host='192.168.0.109', db='10')
+        self.running = False
 
     def start_search(self):
         self.do_click("a[href='/resumes/']")
@@ -42,8 +46,8 @@ class WorkUaManager(WorkUaLogin):
         self.do_click("#f2", delay=1)
         self.do_click("#f3", delay=1)
         self.do_input('#search', self.keyword, delay=1)
-        # self.do_click('.input-search-city')
-        # self.do_click('.js-region-reset', delay=1)
+        self.do_click('.input-search-city')
+        self.do_click('.js-region-reset', delay=1)
         self.do_click('button[type=submit]')
 
     def go_to_next_page(self):
@@ -56,8 +60,11 @@ class WorkUaManager(WorkUaLogin):
 
     def generate_urls(self):
         self.start_search()
-        while True:
+        existing_urls = [url['url'] for url in self.db.find({}, projection={'_id': 0, 'url': 1})]
+        while self.running:
             for resume_url in self.get_resume_urls_from_page():
+                if resume_url in existing_urls:
+                    continue
                 yield resume_url
             try:
                 self.go_to_next_page()
@@ -67,19 +74,21 @@ class WorkUaManager(WorkUaLogin):
 
     def process(self):
         self.login()
-        pool = multiprocessing.Pool(processes=4)
+        pool = multiprocessing.Pool(processes=5)
         urls_list = self.generate_urls()
         count = 0
+        self.running = True
         for resume, url in pool.imap(worker_runner, urls_list):
-            if self.redis.hget('work', url):
-                continue
-            self.redis.hset('work', url, json.dumps(resume))
-            self.data[url] = resume
-        data = list(self.data.values())
-        cols_set = set([k for d in data for k in d.keys()])
+            self.db.insert(resume)
+            # count += 1
+            # if count == 10:
+            #     break
+
+        mongo_data = list(self.db.find({}, projection={'_id': 0}))
+        cols_set = set([k for d in mongo_data for k in d.keys()])
         print(cols_set)
         columns = list(cols_set)
-        return data, columns
+        return mongo_data, columns
 
 
 class WorkUaWorker(WorkUaLogin):
@@ -116,6 +125,9 @@ class WorkUaWorker(WorkUaLogin):
             cls.counter = 1
             return cls._instance
 
+    def __del__(self):
+        self.driver.quit()
+
     def init(self, read_contacts):
         # self.driver = webdriver.Firefox()
         self.read_contacts = read_contacts
@@ -127,15 +139,16 @@ class WorkUaWorker(WorkUaLogin):
     def read_resume(self, url):
         print(url)
         self.driver.get(url)
-        info = dict(
-            raw=self._get_text('.card.card-indent.wordwrap', delay=1),
-            fullname=self._get_text('.card.card-indent.wordwrap H1.cut-top'),
-            position=self._get_text('.card.card-indent.wordwrap H2'),
-            cv_date=self._get_text('.card.card-indent.wordwrap .add-top span.text-muted'),
-        )
         if self.read_contacts:
             self.do_click('#showContacts')
             self._get_element('.card.card-indent.wordwrap .list-inline')
+        info = dict(
+            url=url,
+            raw=self._get_text('.card.card-indent.wordwrap', delay=1),
+            fullname=self._get_text('.card.card-indent.wordwrap H1.cut-top'),
+            position=self._get_text('.card.card-indent.wordwrap H2'),
+            cv_date=self._get_text('.card.card-indent.wordwrap .add-top span.text-muted').replace('Резюме от', ''),
+        )
 
         meta = self._get_list('.card.card-indent.wordwrap dl > *')
         for i in range(0, len(meta), 2):
@@ -161,7 +174,8 @@ class WorkUaWorker(WorkUaLogin):
 if __name__ == "__main__":
     start = datetime.datetime.now()
     c = WorkUaManager(keyword='python', worker=worker_runner, read_contacts=False)
-    data, columns = c.process()
-    write_to_file('work.xlsx', data, columns)
+    c.process()
+    data, columns = c.get_data()
+    write_to_file('var/data/work_%s.xlsx' % datetime.datetime.now().strftime("%Y-%m-%d"), data, columns)
     end = datetime.datetime.now()
     print('start: %s, end: %s. total: %s' % (start, end, end - start))

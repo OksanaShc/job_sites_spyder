@@ -1,7 +1,6 @@
 import xlsxwriter
 
 
-
 def write_to_file(filename, data, columns):
     # Create an new Excel file and add a worksheet.
     workbook = xlsxwriter.Workbook(filename)
