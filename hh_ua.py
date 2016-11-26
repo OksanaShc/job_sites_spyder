@@ -1,13 +1,9 @@
 import re
-import multiprocessing
 import time
 from selenium import webdriver
 
 from base import Base
 
-
-# def worker_runner(url):
-#     return HHWorker(read_contacts=False).read_resume(url)
 
 
 class HHLogin(Base):
@@ -34,7 +30,6 @@ class HHManager(Base):
     def __new__(cls, keyword='', read_contacts=False, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(HHManager, cls).__new__(cls)
-            # cls.driver = webdriver.Firefox()
             cls._instance.init(keyword, read_contacts)
             cls.counter = 0
         if cls.counter < 11:
@@ -57,11 +52,15 @@ class HHManager(Base):
         self.read_contacts = read_contacts
         time.sleep(1)
         self.login()
+        self.running = False
         print('loginned')
 
     def read_resume(self, url):
         print(url)
         self.driver.get(url)
+        if self._get_element_safe('.g-attention.m-attention_bad'):
+            self.running = False
+            return '', ''
         cv_date = self.date_re.findall(self._get_text('.resume-header-additional__update-date') or '')
 
         info = dict(
@@ -105,7 +104,7 @@ class HHManager(Base):
         self.start_search()
         count = 0
         existing_urls = [url['url'] for url in self.db.find({}, projection={'_id': 0, 'url': 1})]
-        while count < 2:
+        while True:
             for resume_url in self.get_resume_urls_from_page():
                 if resume_url in existing_urls:
                     continue
@@ -120,11 +119,12 @@ class HHManager(Base):
     def process(self):
         urls_list = list(self.generate_urls())
         count = 0
-        for url in urls_list:
-            resume, url = self.read_resume(url)
-            if resume:
-                self.data[url] = resume
-                count += 1
+        while self.running:
+            for url in urls_list:
+                resume, url = self.read_resume(url)
+                if resume:
+                    self.data[url] = resume
+                    count += 1
         for resume in self.data.values():
             self.save_item(resume)
         self.driver.close()

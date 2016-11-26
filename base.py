@@ -40,6 +40,13 @@ class Base(object):
         except:
             print('Error: selector not found element: {}, url: {}'.format(selector, self.driver.current_url))
 
+    def _get_element_safe(self, selector, type='css', delay=0):
+        try:
+            element = self._get_element(selector, type, delay)
+            return element
+        except:
+            print('Error: selector not found element: {}, url: {}'.format(selector, self.driver.current_url))
+
     def _get_list(self, selector, type='css', delay=0):
         time.sleep(delay)
         if selector.startswith('xpath'):
