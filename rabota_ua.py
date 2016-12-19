@@ -1,7 +1,6 @@
 import re
 import time
 import multiprocessing
-
 from base import Base
 
 
@@ -39,17 +38,19 @@ class RabotaUAManager(RabotaUaLogin):
         self.do_click("//a[contains(text(), 'Найти резюме')]", type='xpath')
         self.do_input('#beforeContentZone_Main2_txtKeywords', self.keyword, delay=1)
         self.do_click('a#search')
-        self.do_click('''select[data-bind="options: PeriodOptions, optionsText: 'Name', optionsValue: 'Key', value: SelectedPeriod"]''', delay=1)
-        self.do_click('''select[data-bind="options: PeriodOptions, optionsText: 'Name', optionsValue: 'Key', value: SelectedPeriod"] option[value = '5']''', delay=1)
+        self.do_click('//*/select[contains(@class, "headline")]', delay=2, type='xpath')
+        self.select_from_combobox('//*/select[contains(@class, "headline")]/option[@value="5"]', 'xpath', 2)
+        self.do_click("//span[text() = 'IT']/preceding-sibling::span/input", delay=5, type='xpath')
 
     def get_resume_urls_from_page(self):
         time.sleep(1)
         resumes = self._get_list(selector='h3 a[href^="/cv/"]')
         try:
-            urls =  [resume.get_attribute("href") for resume in resumes]
+            urls = [resume.get_attribute("href") for resume in resumes]
             return urls
         except Exception as e:
             print(e)
+            return []
 
     def go_to_next_page(self):
         self.do_click('a.pager-next.pager-next-enabled', delay=1)
@@ -70,8 +71,9 @@ class RabotaUAManager(RabotaUaLogin):
 
     def process(self):
         self.login()
-        pool = multiprocessing.Pool(processes=5)
         self.running = True
+
+        pool = multiprocessing.Pool(processes=5)
         urls_list = self.generate_urls()
         for i, (resume, url) in enumerate(pool.imap(worker_runner, urls_list)):
             if resume.get('error'):
@@ -80,6 +82,41 @@ class RabotaUAManager(RabotaUaLogin):
                 pool.join()
                 break
             self.save_item(resume)
+
+    def get_all_urls(self):
+
+        self.start_search()
+        existing_urls = [url['url'] for url in self.db.find({}, projection={'_id': 0, 'url': 1})]
+        urls = {}
+        while self.running:
+            urls_list = self.get_resume_urls_from_page()
+            urls.update({url: 1 for url in urls_list})
+            try:
+                self.go_to_next_page()
+            except Exception as e:
+                print(e)
+                break
+        return list(urls.keys())
+
+    def mark_cv(self):
+        self.login()
+        self.running = True
+        self.start_search()
+        existing_urls = [url['url'] for url in self.db.find({'sector': {'$exists': False}}, projection={'_id': 0, 'url': 1})]
+        urls = {}
+        count = len(existing_urls)
+        sector = self.keyword.replace(',', '')
+        while count:
+            for url in self.get_resume_urls_from_page():
+                if url in existing_urls:
+                    self.db.update({'url': url}, {'$set': {'sector': sector}})
+                    count -= 1
+            try:
+                self.go_to_next_page()
+            except Exception as e:
+                print(e)
+                break
+        return list(urls.keys())
 
 
 class RabotauaWorker(RabotaUaLogin):
@@ -138,7 +175,6 @@ class RabotauaWorker(RabotaUaLogin):
     def read_resume(self, url):
         if self.stopped:
             return (None, url)
-
         print(url)
         info = {}
         self.driver.get(url)
@@ -171,10 +207,14 @@ class RabotauaWorker(RabotaUaLogin):
         return resume, url
 
 
-if __name__ == "__main__":
+def run_rabota_ua():
     start = time.time()
-    c = RabotaUAManager(keyword='php', worker=worker_runner, read_contacts=True)
+    print('Start ')
+    c = RabotaUAManager(keyword='c++/c#,', worker=worker_runner, read_contacts=True)
     c.process()
     c.write_file()
     end = time.time()
     print('delay: %s' % round(end - start))
+
+if __name__ == "__main__":
+    run_rabota_ua()

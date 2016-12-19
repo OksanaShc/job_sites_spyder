@@ -26,7 +26,6 @@ class HHManager(Base):
     LOGIN_FIELD = 'hr.rinasystems@gmail.com'
     PASSWORD_FIELD = 'H20R16'
 
-
     def __new__(cls, keyword='', read_contacts=False, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(HHManager, cls).__new__(cls)
@@ -60,7 +59,7 @@ class HHManager(Base):
         self.driver.get(url)
         if self._get_element_safe('.g-attention.m-attention_bad'):
             self.running = False
-            return '', ''
+            return {'error': True}, ''
         cv_date = self.date_re.findall(self._get_text('.resume-header-additional__update-date') or '')
 
         info = dict(
@@ -108,30 +107,43 @@ class HHManager(Base):
             for resume_url in self.get_resume_urls_from_page():
                 if resume_url in existing_urls:
                     continue
+                count += 1
+                if count > 500:
+                    break
                 yield resume_url
             try:
                 self.go_to_next_page()
-                count +=1
+
+
             except Exception as e:
                 print(e)
                 break
 
     def process(self):
-        urls_list = list(self.generate_urls())
+        urls_set = set(list(self.generate_urls()))
         count = 0
+        self.running= True
         while self.running:
-            for url in urls_list:
+            for url in urls_set:
                 resume, url = self.read_resume(url)
+                if resume.get('error'):
+                    break
                 if resume:
                     self.data[url] = resume
+                    self.save_item(resume)
                     count += 1
-        for resume in self.data.values():
-            self.save_item(resume)
+                if count == 15:
+                    self.driver.quit()
+                    self.driver = webdriver.Firefox()
+                    self.login()
+                    count = 0
+            break
+
         self.driver.close()
 
 if __name__ == "__main__":
     start = time.time()
-    c = HHManager(keyword='python', read_contacts=False)
+    c = HHManager(keyword='javascript', read_contacts=False)
     c.process()
     c.write_file()
     end = time.time()

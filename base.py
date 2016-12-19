@@ -6,13 +6,14 @@ import selenium.webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.keys import Keys
 
 
 class Base(object):
     table = None
 
     def __init__(self):
-        self.dbconn = pymongo.MongoClient(host='192.168.0.109')
+        self.dbconn = pymongo.MongoClient(host='127.0.0.1')
         self.db = getattr(self.dbconn.cv_base, self.table)
         self.driver = selenium.webdriver.Firefox()
 
@@ -57,6 +58,12 @@ class Base(object):
 
     def do_click(self, selector, type='css', delay=0):
         element = self._get_element(selector, type, delay)
+        element.click()
+        return element
+
+    def select_from_combobox(self, selector, type='css', delay=0):
+        element = self._get_element(selector, type, delay)
+        element.send_keys(Keys.ENTER)
         element.click()
         return element
 
