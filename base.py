@@ -15,7 +15,7 @@ class Base(object):
     def __init__(self):
         self.dbconn = pymongo.MongoClient(host='127.0.0.1')
         self.db = getattr(self.dbconn.cv_base, self.table)
-        self.driver = selenium.webdriver.Firefox()
+        self.driver = selenium.webdriver.Firefox(executable_path='/home/user/Projects/resume/geckodriver')
 
     def _get_element(self, selector, type='css', delay=0):
         self.wait = WebDriverWait(self.driver, 5)
