@@ -216,5 +216,6 @@ def run_rabota_ua():
     end = time.time()
     print('delay: %s' % round(end - start))
 
+
 if __name__ == "__main__":
     run_rabota_ua()

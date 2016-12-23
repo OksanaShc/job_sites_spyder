@@ -1,7 +1,8 @@
 from rabota_ua import run_rabota_ua
 
-tasks = [
-    {'name': 'Rabota ua',
-     'fn': run_rabota_ua,
-     'time': '18-35'}
-]
+
+tasks = [{
+    'name': 'Rabota ua',
+    'fn': run_rabota_ua,
+    'time': '11-00'
+}]
