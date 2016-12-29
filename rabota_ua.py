@@ -15,9 +15,9 @@ class RabotaUaLogin(Base):
 
     def login(self):
         self.driver.get('http://rabota.ua/employer/login')
-        self.do_input('#centerZone_ZoneLogin_txLogin', self.LOGIN_FIELD, delay=1)
-        self.do_input('#centerZone_ZoneLogin_txPassword', self.PASSWORD_FIELD)
-        self.do_click("#centerZone_ZoneLogin_btnLogin")
+        self.do_input('#content_ZoneLogin_txLogin', self.LOGIN_FIELD, delay=1)
+        self.do_input('#content_ZoneLogin_txPassword', self.PASSWORD_FIELD)
+        self.do_click("#content_ZoneLogin_btnLogin")
 
     def __del__(self):
         self.driver.quit()
