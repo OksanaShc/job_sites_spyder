@@ -1,3 +1,3 @@
-xlsxwriter
+pymongo
 selenium
-redis
+xlsxwriter
