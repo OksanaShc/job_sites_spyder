@@ -2,6 +2,7 @@ import time
 import pymongo
 import datetime
 import xlsxwriter
+import pyvirtualdisplay
 import selenium.webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -13,6 +14,8 @@ class Base(object):
     table = None
 
     def __init__(self):
+        display = pyvirtualdisplay.Display(visible=0, size=(800, 600))
+        display.start()
         self.dbconn = pymongo.MongoClient(host='127.0.0.1')
         self.db = getattr(self.dbconn.cv_base, self.table)
         self.driver = selenium.webdriver.Firefox(executable_path='/home/user/Projects/resume/geckodriver')
