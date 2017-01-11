@@ -19,9 +19,6 @@ class RabotaUaLogin(Base):
         self.do_input('#content_ZoneLogin_txPassword', self.PASSWORD_FIELD)
         self.do_click("#content_ZoneLogin_btnLogin")
 
-    def __del__(self):
-        self.driver.quit()
-
 
 class RabotaUAManager(RabotaUaLogin):
     def __init__(self, keyword, worker, read_contacts):

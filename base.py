@@ -12,10 +12,16 @@ from selenium.webdriver.common.keys import Keys
 
 class Base(object):
     table = None
+    virt_displ_inited = False
 
     def __init__(self):
-        display = pyvirtualdisplay.Display(visible=0, size=(800, 600))
-        display.start()
+        try:
+            if Base.virt_displ_inited is False:
+                Base.virt_displ_inited = True
+                display = pyvirtualdisplay.Display(visible=0, size=(1920, 1080))
+                display.start()
+        except:
+            pass
         self.dbconn = pymongo.MongoClient(host='127.0.0.1')
         self.db = getattr(self.dbconn.cv_base, self.table)
         self.driver = selenium.webdriver.Firefox(executable_path='/home/user/Projects/resume/geckodriver')
