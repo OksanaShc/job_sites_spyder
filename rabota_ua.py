@@ -19,9 +19,6 @@ class RabotaUaLogin(Base):
         self.do_input('#content_ZoneLogin_txPassword', self.PASSWORD_FIELD)
         self.do_click("#content_ZoneLogin_btnLogin")
 
-    def __del__(self):
-        self.driver.quit()
-
 
 class RabotaUAManager(RabotaUaLogin):
     def __init__(self, keyword, worker, read_contacts):
@@ -82,6 +79,12 @@ class RabotaUAManager(RabotaUaLogin):
                 pool.join()
                 break
             self.save_item(resume)
+        if self.running:
+            pool.close()
+            pool.join()
+
+        pool.close()
+        pool.join()
 
     def get_all_urls(self):
 
@@ -210,7 +213,7 @@ class RabotauaWorker(RabotaUaLogin):
 def run_rabota_ua():
     start = time.time()
     print('Start ')
-    c = RabotaUAManager(keyword='c++/c#,', worker=worker_runner, read_contacts=True)
+    c = RabotaUAManager(keyword='javascript,', worker=worker_runner, read_contacts=True)
     c.process()
     c.write_file()
     end = time.time()

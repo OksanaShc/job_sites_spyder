@@ -20,6 +20,9 @@ class Base(object):
         self.db = getattr(self.dbconn.cv_base, self.table)
         self.driver = selenium.webdriver.Firefox(executable_path='/home/user/Projects/resume/geckodriver')
 
+    def __del__(self):
+        self.driver.quit()
+
     def _get_element(self, selector, type='css', delay=0):
         self.wait = WebDriverWait(self.driver, 5)
         self.wait2 = WebDriverWait(self.driver, 2)
