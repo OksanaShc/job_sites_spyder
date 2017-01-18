@@ -18,8 +18,8 @@ class Base(object):
         try:
             if Base.virt_displ_inited is False:
                 Base.virt_displ_inited = True
-                display = pyvirtualdisplay.Display(visible=0, size=(1920, 1080))
-                display.start()
+                self.display = pyvirtualdisplay.Display(visible=0, size=(1920, 1080))
+                self.display.start()
         except:
             pass
         self.dbconn = pymongo.MongoClient(host='127.0.0.1')
@@ -28,6 +28,7 @@ class Base(object):
 
     def __del__(self):
         self.driver.quit()
+        self.display.stop()
 
     def _get_element(self, selector, type='css', delay=0):
         self.wait = WebDriverWait(self.driver, 5)
