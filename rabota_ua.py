@@ -9,7 +9,7 @@ def worker_runner(url):
 
 
 class RabotaUaLogin(Base):
-    table = 'rabota'
+
     LOGIN_FIELD = 'hr.rinasystems@gmail.com'
     PASSWORD_FIELD = '2016HR'
 
@@ -21,6 +21,8 @@ class RabotaUaLogin(Base):
 
 
 class RabotaUAManager(RabotaUaLogin):
+    table = 'rabota'
+
     def __init__(self, keyword, worker, read_contacts):
         super().__init__()
         self.data = {}
@@ -75,14 +77,8 @@ class RabotaUAManager(RabotaUaLogin):
         for i, (resume, url) in enumerate(pool.imap(worker_runner, urls_list)):
             if resume.get('error'):
                 self.running = False
-                pool.close()
-                pool.join()
                 break
             self.save_item(resume)
-        if self.running:
-            pool.close()
-            pool.join()
-
         pool.close()
         pool.join()
 
