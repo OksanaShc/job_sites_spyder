@@ -1,5 +1,6 @@
 import re
 import time
+import datetime
 import multiprocessing
 from base import Base
 
@@ -212,7 +213,6 @@ class RabotauaWorker(RabotaUaLogin):
         info['url'] = url
         info['name'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_lblName')
         info['position'] = self._get_text('#centerZone_BriefResume1_CvView1_cvHeader_txtJobName')
-
         info['cv_date'] = (self._get_text('.cvheadnav .muted') or '').replace('резюме обновлено ', '')
         info.update(self.get_core_info())
 
@@ -221,7 +221,8 @@ class RabotauaWorker(RabotaUaLogin):
         for field in fields:
             if field.text and field.get_attribute('id'):
                 info[field.get_attribute('id')] = field.text
-
+        if info:
+            info['date'] = datetime.datetime.now().strftime('%Y-%m-%d')
         resume = {self.vocabulary.get(k, k): v for k, v in info.items()}
         return resume, url
 
