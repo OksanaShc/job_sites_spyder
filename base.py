@@ -1,8 +1,10 @@
 import time
 import pymongo
+import psutil
 import datetime
 import xlsxwriter
 import pyvirtualdisplay
+import multiprocessing
 import selenium.webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -19,14 +21,24 @@ class Base(object):
             self.display.start()
         except:
             pass
+        self.is_closed = False
         if self.table:
             self.dbconn = pymongo.MongoClient(host='127.0.0.1')
             self.db = getattr(self.dbconn.cv_base, self.table)
         self.driver = selenium.webdriver.Firefox(executable_path='/home/user/Projects/resume/geckodriver')
 
-    def __del__(self):
-        self.driver.quit()
-        self.display.stop()
+    def close(self):
+        if not self.is_closed:
+            try:
+                self.driver.quit()
+                self.display.stop()
+                self.is_closed = True
+            except:
+                process = psutil.Process(self.driver.service.process.pid)
+                for p in process.children:
+                    p.kill()
+                process.kill()
+        print('Close', multiprocessing.current_process())
 
     def _get_element(self, selector, type='css', delay=0):
         self.wait = WebDriverWait(self.driver, 5)
