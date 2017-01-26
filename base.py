@@ -35,7 +35,7 @@ class Base(object):
                 self.is_closed = True
             except:
                 process = psutil.Process(self.driver.service.process.pid)
-                for p in process.children:
+                for p in process.children(recursive=True):
                     p.kill()
                 process.kill()
         print('Close', multiprocessing.current_process())
