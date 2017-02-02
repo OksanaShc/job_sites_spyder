@@ -79,7 +79,7 @@ class RabotaUAManager(RabotaUaLogin):
             if resume.get('error'):
                 self.running = False
                 break
-            self.save_item(resume)
+            self.save_item({'sector': self.keyword, **resume})
         pool.close()
         pool.join()
 
