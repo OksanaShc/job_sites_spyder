@@ -9,6 +9,12 @@ def worker_runner(url):
     return RabotauaWorker(read_contacts=True).read_resume(url)
 
 
+def worker_close():
+    RabotauaWorker().close()
+    time.sleep(20)
+    return multiprocessing.current_process()._identity[0]
+
+
 class RabotaUaLogin(Base):
 
     LOGIN_FIELD = 'hr.rinasystems@gmail.com'
@@ -23,6 +29,7 @@ class RabotaUaLogin(Base):
 
 class RabotaUAManager(RabotaUaLogin):
     table = 'rabota'
+    process_count = 5
 
     def __init__(self, keyword, worker, read_contacts):
         super().__init__()
@@ -73,20 +80,33 @@ class RabotaUAManager(RabotaUaLogin):
         self.login()
         self.running = True
 
-        pool = multiprocessing.Pool(processes=5)
-        urls_list = self.generate_urls()
-        for i, (resume, url) in enumerate(pool.imap(worker_runner, urls_list)):
-            if resume.get('error'):
-                self.running = False
-                break
-            self.save_item({'sector': self.keyword, **resume})
-        pool.close()
-        pool.join()
+        pool = multiprocessing.Pool(processes=self.process_count)
+        i = 0
+        try:
+            urls_list = self.generate_urls()
+            for i, (resume, url) in enumerate(pool.imap(worker_runner, urls_list), 1):
+                if resume.get('error'):
+                    self.running = False
+                    break
+                self.save_item({'sector': self.keyword, **resume})
+        except Exception as e:
+            print('Exception: %s' % e)
+        finally:
+            if i > 0:
+                queue = {p._identity[0]: 1 for p in pool._pool}
+                while queue:
+                    ident = pool.apply_async(worker_close).get()
+                    print('Ident', ident)
+                    if ident in queue:
+                        del queue[ident]
+                    if not queue: break
+            pool.close()
+            pool.join()
+            self.close()
 
     def get_all_urls(self):
 
         self.start_search()
-        existing_urls = [url['url'] for url in self.db.find({}, projection={'_id': 0, 'url': 1})]
         urls = {}
         while self.running:
             urls_list = self.get_resume_urls_from_page()
@@ -140,7 +160,7 @@ class RabotauaWorker(RabotaUaLogin):
             cls._instance.init(read_contacts)
         return cls._instance
 
-    def __init__(self, read_contacts):
+    def __init__(self, read_contacts=False):
         pass
 
     def init(self, read_contacts):
