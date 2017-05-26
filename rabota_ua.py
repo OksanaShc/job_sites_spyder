@@ -44,10 +44,11 @@ class RabotaUAManager(RabotaUaLogin):
     def start_search(self):
         self.do_click("//a[contains(text(), 'Найти резюме')]", type='xpath')
         self.do_input('#beforeContentZone_Main2_txtKeywords', self.keyword, delay=1)
-        self.do_click('a#search')
-        self.do_click('//*/select[contains(@class, "headline")]', delay=2, type='xpath')
-        self.select_from_combobox('//*/select[contains(@class, "headline")]/option[@value="5"]', 'xpath', 2)
-        self.do_click("//span[text() = 'IT']/preceding-sibling::span/input", delay=5, type='xpath')
+        self.do_click('a#search', delay=5)
+        self.do_click('//div[contains(@class, "cv-list__period-select")]/select', delay=2, type='xpath')
+        self.select_from_combobox('//div[contains(@class, "cv-list__period-select")]/select/option[@value="5"]', 'xpath', 2)
+        self.do_click('a.js-newcvdb-close.newcvdb-notification__closebtn', delay=1)
+        self.do_click("//span[text() = 'IT']", delay=5, type='xpath')
 
     def get_resume_urls_from_page(self):
         time.sleep(1)
@@ -60,7 +61,7 @@ class RabotaUAManager(RabotaUaLogin):
             return []
 
     def go_to_next_page(self):
-        self.do_click('a.pager-next.pager-next-enabled', delay=1)
+        self.do_click('a.pager__button-next', delay=1)
 
     def generate_urls(self):
         self.start_search()
