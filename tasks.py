@@ -1,8 +1,8 @@
-from rabota_ua import run_rabota_ua
+from spiders.rabota_ua import run_rabota_ua
 
 
 tasks = [{
     'name': 'Rabota ua',
     'fn': run_rabota_ua,
-    'time': '11-00'
+    'time': '12-17'
 }]

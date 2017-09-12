@@ -2,3 +2,4 @@ pymongo
 selenium
 xlsxwriter
 pyvirtualdisplay
+psutil
